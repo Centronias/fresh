@@ -7,3 +7,7 @@ thumbs.db
 *~
 *.rs.bk
 *.swp
+/.idea/codeStyles/codeStyleConfig.xml
+/.idea/fresh.iml
+/.idea/modules.xml
+/.idea/vcs.xml

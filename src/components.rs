@@ -2,10 +2,7 @@ use amethyst::{
     ecs::*,
 };
 
-#[derive(Default, Component)]
-struct Board {}
-
 #[derive(Component)]
-struct Tile {
-    _index: u32,
+pub struct Tile {
+    pub index: usize,
 }

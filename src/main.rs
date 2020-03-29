@@ -10,8 +10,6 @@ use amethyst::{
         plugins::{RenderFlat2D, RenderToWindow},
         types::DefaultBackend,
     },
-    input::{VirtualKeyCode, is_key_down, is_close_requested},
-    ecs::*,
     renderer::*,
     utils::*,
     LoggerConfig,
@@ -20,6 +18,7 @@ use amethyst::{
 mod states;
 use states::*;
 mod components;
+mod board;
 
 fn main() -> amethyst::Result<()> {
     amethyst::start_logger(LoggerConfig::default());

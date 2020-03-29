@@ -7,6 +7,8 @@ use amethyst::{
     window::*,
     input::{VirtualKeyCode, is_key_down, is_close_requested},
 };
+use super::components::*;
+use super::board::*;
 
 fn load_sprite_sheet(world: &mut World, png_path: &str, ron_path: &str) -> Handle<SpriteSheet> {
     let loader = world.read_resource::<Loader>();
@@ -44,45 +46,6 @@ fn initialise_camera(world: &mut World, parent: Entity) -> Entity {
         .build()
 }
 
-// TODO Put text on the tiles to make it easier to figure out which is which https://github.com/amethyst/amethyst/blob/master/examples/pong_tutorial_05/pong.rs#L206
-
-fn init_board(world: &mut World, sprite_sheet: Handle<SpriteSheet>) -> Entity {
-    let mut transform = Transform::default();
-    transform.set_translation_z(-10.0);
-    let sprite = SpriteRender {
-        sprite_sheet: sprite_sheet.clone(),
-        sprite_number: 0,
-    };
-    let board = world
-        .create_entity()
-        .with(transform)
-        .with(sprite)
-        .named("Board")
-        .build();
-
-    for index in 0usize..4 {
-        init_tile(world, sprite_sheet.clone() , index, board);
-    };
-
-    board
-}
-
-fn init_tile(world: &mut World, sprite_sheet: Handle<SpriteSheet>, index: usize, parent: Entity) -> Entity {
-    let mut transform = Transform::default();
-    transform.set_translation_xyz((index as f32) * 120.0, 0.0, -3.0);
-    let sprite = SpriteRender {
-        sprite_sheet,
-        sprite_number: index + 1,
-    };
-    world
-        .create_entity()
-        .with(transform)
-        .with(Parent { entity: parent })
-        .with(sprite)
-        .named(format!("Tile{}", index))
-        .build()
-}
-
 pub struct Starting;
 
 impl SimpleState for Starting {
@@ -95,11 +58,9 @@ impl SimpleState for Starting {
             "Background.ron"
         );
 
-        let board = init_board(world, background_sprite_sheet_handle);
+        let board = Board::init_board(world, background_sprite_sheet_handle);
         let _camera = initialise_camera(world, board);
     }
-
-
 
     fn handle_event(
         &mut self,
@@ -118,6 +79,11 @@ impl SimpleState for Starting {
 /// A state representing the game awaiting some input from the player. Waits until the player clicks on a tile or exits.
 struct Awaiting;
 impl SimpleState for Awaiting {
+    fn on_resume(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
+        // If we resume and the board is solved, the player wins.
+        let _boards = _data.world.read_resource::<Board>();
+    }
+
     fn handle_event(
         &mut self,
         data: StateData<'_, GameData<'_, '_>>,
