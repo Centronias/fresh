@@ -1,0 +1,15 @@
+[package]
+name = "fresh"
+version = "0.1.0"
+authors = []
+edition = "2018"
+
+[dependencies]
+amethyst = { git = "https://github.com/amethyst/amethyst" }
+specs-derive = "0.4.1"
+
+[features]
+default = ["vulkan"]
+empty = ["amethyst/empty"]
+metal = ["amethyst/metal"]
+vulkan = ["amethyst/vulkan"]
