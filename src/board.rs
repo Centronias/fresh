@@ -4,20 +4,53 @@ use amethyst::{
     core::*,
     ecs::Entity,
     renderer::*,
-    window::*,
-    input::{VirtualKeyCode, is_key_down, is_close_requested},
 };
 use super::components::*;
 
 pub struct Board {
-
+    height: usize,
+    width: usize,
+    tiles: Vec<Option<usize>>,
 }
 
 impl Board {
+    pub fn is_solved(&self) -> bool {
+        let mut it = self.tiles.iter();
+        if *it.next().expect("The first element of tiles should exist") != None {
+            false
+        } else {
+            let mut expected = 1usize;
+            it.all(|index| {
+                if *index == Some(expected) {
+                    expected += 1;
+                    true
+                } else { false }
+            })
+        }
+    }
+
     /// Creates and returns an entity representing the board with child entities representing the tiles on the board.
     /// Also adds a Board to the world's storage.
     pub fn init_board(world: &mut World, sprite_sheet: Handle<SpriteSheet>) -> Entity {
+        Board::create_board_resource(world);
         Board::create_board_entity(world, sprite_sheet)
+    }
+
+    fn create_board_resource(world: &mut World) {
+        let height = 2;
+        let width = 2;
+
+    let mut tiles = Vec::new();
+    tiles.push(None);
+    for i in 1..height * width {
+    tiles.push(Some(i));
+    }
+
+    world.insert(Board {
+    height,
+    width,
+    tiles,
+    });
     }
 
     fn create_board_entity(world: &mut World, sprite_sheet: Handle<SpriteSheet>) -> Entity {
@@ -60,5 +93,24 @@ impl Board {
     }
 }
 
+#[cfg(test)]
+fn board_solved() {
+    let board = Board {
+        height: 2,
+        width: 2,
+        tiles: vec![None, Some(1), Some(2), Some(3)],
+    };
 
+    assert_eq!(board.is_solved(), true);
+}
 
+#[cfg(test)]
+fn board_not_solved() {
+    let board = Board {
+        height: 2,
+        width: 2,
+        tiles: vec![None, Some(2), Some(1), Some(3)],
+    };
+
+    assert_eq!(board.is_solved(), false);
+}

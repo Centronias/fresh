@@ -7,7 +7,7 @@ use amethyst::{
     window::*,
     input::{VirtualKeyCode, is_key_down, is_close_requested},
 };
-use super::components::*;
+
 use super::board::*;
 
 fn load_sprite_sheet(world: &mut World, png_path: &str, ron_path: &str) -> Handle<SpriteSheet> {
