@@ -2,7 +2,7 @@ use amethyst::prelude::*;
 use amethyst::{
     assets::*,
     core::*,
-    ecs::*,
+    ecs::Entity,
     renderer::*,
     window::*,
     input::{VirtualKeyCode, is_key_down, is_close_requested},
@@ -79,11 +79,6 @@ impl SimpleState for Starting {
 /// A state representing the game awaiting some input from the player. Waits until the player clicks on a tile or exits.
 struct Awaiting;
 impl SimpleState for Awaiting {
-    fn on_resume(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
-        // If we resume and the board is solved, the player wins.
-        let _boards = _data.world.read_resource::<Board>();
-    }
-
     fn handle_event(
         &mut self,
         data: StateData<'_, GameData<'_, '_>>,
@@ -94,11 +89,26 @@ impl SimpleState for Awaiting {
             Trans::Push(Box::new(ProcessingMove))
         })
     }
+
+    fn update(&mut self, StateData { world, .. }: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
+        // TODO If we resume and the board is solved, the player wins.
+        let board = world.read_resource::<Board>();
+
+        if board.is_solved() {
+            Trans::Replace(Box::new(Winner {}))
+        } else {
+            Trans::None
+        }
+    }
 }
 
 /// A state representing the game playing out a move, no input except exiting is accepted..
 struct ProcessingMove;
 impl SimpleState for ProcessingMove {
+    fn on_start(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
+        // TODO Update the data for this state to include the tile selected and where it's headed.
+    }
+
     fn handle_event(
         &mut self,
         data: StateData<'_, GameData<'_, '_>>,
@@ -111,15 +121,37 @@ impl SimpleState for ProcessingMove {
 
     fn update(&mut self, _data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
         // TODO This is where we'd "simulate" the movement of tiles.
-
-        Trans::Pop
+        if true {
+            // Tile has arrived, pop back to awaiting input state.
+            Trans::Pop
+        } else {
+            // Tile hasn't arrived yet, remain in this state.
+            Trans::None
+        }
     }
 }
 
-fn handle_common_events(
+struct Winner {}
+impl SimpleState for Winner {
+    fn on_start(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
+
+        print!("Ye win");
+        unimplemented!()
+    }
+
+    fn handle_event(&mut self, data: StateData<'_, GameData<'_, '_>>, event: StateEvent) -> SimpleTrans {
+        // The only input we care about in this state is the common stuff.
+        handle_common_events(data.world, &event)
+            .unwrap_or(Trans::None)
+    }
+}
+
+fn handle_common_events<T>(
     world: &mut World,
     event: &StateEvent,
-) -> Option<SimpleTrans> {
+) -> Option<Trans<T, StateEvent>> {
+    use ecs::*;
+
     match event {
         StateEvent::Window(event) => if is_close_requested(event) || is_key_down(event, VirtualKeyCode::Escape) {
             // Player wants to exit.
@@ -133,6 +165,10 @@ fn handle_common_events(
                     }
                 },
             );
+
+            let board = world.read_resource::<Board>();
+            println!("Board => {:?}", &*board);
+
             None
         } else { None },
         _ => None,

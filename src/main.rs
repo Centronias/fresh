@@ -17,6 +17,8 @@ use amethyst::{
 
 mod states;
 use states::*;
+use crate::components::Tile;
+
 mod components;
 mod board;
 
@@ -37,8 +39,9 @@ fn main() -> amethyst::Result<()> {
                 )
                 .with_plugin(RenderFlat2D::default()),
         )?;
-
-    let mut game = Application::build(assets_directory, Starting)?.build(game_data)?;
+    let mut builder = Application::build(assets_directory, Starting)?;
+    builder.world.register::<Tile>();
+    let mut game = builder.build(game_data)?;
     game.run();
     Ok(())
 }

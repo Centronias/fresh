@@ -7,6 +7,7 @@ use amethyst::{
 };
 use super::components::*;
 
+#[derive(Debug)]
 pub struct Board {
     height: usize,
     width: usize,
@@ -29,6 +30,11 @@ impl Board {
         }
     }
 
+    pub fn scramble(&mut self) {
+        // TODO Do something to scramble the board.
+        self.tiles.reverse();
+    }
+
     /// Creates and returns an entity representing the board with child entities representing the tiles on the board.
     /// Also adds a Board to the world's storage.
     pub fn init_board(world: &mut World, sprite_sheet: Handle<SpriteSheet>) -> Entity {
@@ -40,17 +46,20 @@ impl Board {
         let height = 2;
         let width = 2;
 
-    let mut tiles = Vec::new();
-    tiles.push(None);
-    for i in 1..height * width {
-    tiles.push(Some(i));
-    }
+        let mut tiles = Vec::with_capacity(height * width);
+        tiles.push(None);
+        for i in 1..height * width {
+            tiles.push(Some(i));
+        }
+        let mut board = Board {
+            height,
+            width,
+            tiles,
+        };
 
-    world.insert(Board {
-    height,
-    width,
-    tiles,
-    });
+        board.scramble();
+
+        world.insert(board);
     }
 
     fn create_board_entity(world: &mut World, sprite_sheet: Handle<SpriteSheet>) -> Entity {
@@ -69,7 +78,7 @@ impl Board {
             .build();
 
         for index in 0usize..4 {
-            Board::init_tile(world, sprite_sheet.clone() , index, board);
+            Board::init_tile(world, sprite_sheet.clone(), index, board);
         };
 
         board
@@ -93,7 +102,7 @@ impl Board {
     }
 }
 
-#[cfg(test)]
+#[test]
 fn board_solved() {
     let board = Board {
         height: 2,
@@ -104,7 +113,7 @@ fn board_solved() {
     assert_eq!(board.is_solved(), true);
 }
 
-#[cfg(test)]
+#[test]
 fn board_not_solved() {
     let board = Board {
         height: 2,
