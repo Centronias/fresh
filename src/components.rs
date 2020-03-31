@@ -4,5 +4,5 @@ use amethyst::{
 
 #[derive(Component)]
 pub struct Tile {
-    pub index: usize,
+    pub index: u32,
 }

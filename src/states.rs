@@ -1,6 +1,5 @@
 use amethyst::prelude::*;
 use amethyst::{
-    assets::*,
     core::*,
     ecs::Entity,
     renderer::*,
@@ -9,24 +8,6 @@ use amethyst::{
 };
 
 use super::board::*;
-
-fn load_sprite_sheet(world: &mut World, png_path: &str, ron_path: &str) -> Handle<SpriteSheet> {
-    let loader = world.read_resource::<Loader>();
-
-    let texture_handle = loader.load(
-        png_path,
-        ImageFormat::default(),
-        (),
-        &world.read_resource::<AssetStorage<Texture>>()
-    );
-
-    loader.load(
-        ron_path,
-        SpriteSheetFormat(texture_handle),
-        (),
-        &world.read_resource::<AssetStorage<SpriteSheet>>(),
-    )
-}
 
 fn initialise_camera(world: &mut World, parent: Entity) -> Entity {
     let (width, height) = {
@@ -52,13 +33,8 @@ impl SimpleState for Starting {
     fn on_start(&mut self, data: amethyst::prelude::StateData<'_, GameData<'_, '_>>) {
         let world = data.world;
         world.register::<Named>();
-        let background_sprite_sheet_handle = load_sprite_sheet(
-            world,
-            "Background.png",
-            "Background.ron"
-        );
 
-        let board = Board::init_board(world, background_sprite_sheet_handle);
+        let board = Board::init_board(world);
         let _camera = initialise_camera(world, board);
     }
 
