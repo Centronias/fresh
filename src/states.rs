@@ -1,11 +1,7 @@
 use amethyst::prelude::*;
 use amethyst::{
-    core::*,
-    renderer::*,
-    window::*,
-    input::{VirtualKeyCode, InputEvent},
-    winit::MouseButton,
     assets::{AssetStorage, Loader},
+    core::*,
     core::{
         math::{Point3, Vector2, Vector3},
         Named, Parent, Time, Transform, TransformBundle,
@@ -15,6 +11,7 @@ use amethyst::{
         System, WriteStorage,
     },
     input::{is_close_requested, is_key_down, InputBundle, InputHandler, StringBindings},
+    input::{InputEvent, VirtualKeyCode},
     renderer::{
         camera::{ActiveCamera, Camera, Projection},
         debug_drawing::DebugLinesComponent,
@@ -27,7 +24,9 @@ use amethyst::{
     },
     utils::application_root_dir,
     window::ScreenDimensions,
+    window::*,
     winit,
+    winit::MouseButton,
 };
 
 use super::board::*;
@@ -84,9 +83,14 @@ impl Awaiting {
         let cameras = world.read_storage::<Camera>();
         let transforms = world.read_storage::<Transform>();
 
-        let mouse_position = input.mouse_position().expect("Mouse should be on the screen if we're detecting the keypress");
+        let mouse_position = input
+            .mouse_position()
+            .expect("Mouse should be on the screen if we're detecting the keypress");
 
-        let ct: (&Camera, &Transform) = (&cameras, &transforms).join().next().expect("Didn't find the camera");
+        let ct: (&Camera, &Transform) = (&cameras, &transforms)
+            .join()
+            .next()
+            .expect("Didn't find the camera");
         let (camera, transform) = ct;
 
         let dimensions = &*dimensions;
@@ -96,10 +100,10 @@ impl Awaiting {
             Point3::new(
                 mouse_position.0,
                 mouse_position.1,
-                transform.translation().z
+                transform.translation().z,
             ),
             screen_dims,
-            transform
+            transform,
         );
 
         let board = world.read_resource::<Board>();
@@ -117,28 +121,6 @@ impl SimpleState for Awaiting {
             StateEvent::Input(input_event) => match input_event {
                 InputEvent::MouseButtonReleased(mouse_button) => match mouse_button {
                     MouseButton::Left => {
-                        let input = data.world.read_resource::<InputHandler<StringBindings>>();
-                        let dimensions = data.world.read_resource::<ScreenDimensions>();
-                        let cameras = data.world.read_storage::<Camera>();
-                        let transforms = data.world.read_storage::<Transform>();
-
-                        let mouse_position = input.mouse_position().expect("Mouse should be on the screen if we're detecting the keypress");
-
-                        let ct: (&Camera, &Transform) = (&cameras, &transforms).join().next().expect("Didn't find the camera");
-                        let (camera, transform) = ct;
-
-                        let screen_dims = Vector2::new(dimensions.width(), dimensions.height());
-
-                        let pos = camera.projection().screen_to_world_point(
-                            Point3::new(
-                                mouse_position.0,
-                                mouse_position.1,
-                                transform.translation().z
-                            ),
-                            screen_dims,
-                            transform
-                        );
-
                         if let Some(idx) = Awaiting::current_cursor_as_board_idx(data.world) {
                             dbg!(idx);
                             // TODO Only transition if there's an open slot adjacent to the selected tile.
@@ -146,16 +128,19 @@ impl SimpleState for Awaiting {
                         } else {
                             Trans::None
                         }
-                    },
-                    _ => Trans::None
+                    }
+                    _ => Trans::None,
                 },
-                _ => Trans::None
+                _ => Trans::None,
             },
-            _ => Trans::None
+            _ => Trans::None,
         })
     }
 
-    fn update(&mut self, StateData { world, .. }: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
+    fn update(
+        &mut self,
+        StateData { world, .. }: &mut StateData<'_, GameData<'_, '_>>,
+    ) -> SimpleTrans {
         // TODO If we resume and the board is solved, the player wins.
         let board = world.read_resource::<Board>();
 
@@ -186,8 +171,7 @@ impl SimpleState for ProcessingMove {
         event: StateEvent,
     ) -> SimpleTrans {
         // The only input we care about in this state is the common stuff.
-        handle_common_events(data.world, &event)
-            .unwrap_or(Trans::None)
+        handle_common_events(data.world, &event).unwrap_or(Trans::None)
     }
 
     fn update(&mut self, _data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
@@ -207,43 +191,46 @@ impl SimpleState for ProcessingMove {
 struct Winner {}
 impl SimpleState for Winner {
     fn on_start(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
-
         print!("Ye win");
         unimplemented!()
     }
 
-    fn handle_event(&mut self, data: StateData<'_, GameData<'_, '_>>, event: StateEvent) -> SimpleTrans {
+    fn handle_event(
+        &mut self,
+        data: StateData<'_, GameData<'_, '_>>,
+        event: StateEvent,
+    ) -> SimpleTrans {
         // The only input we care about in this state is the common stuff.
-        handle_common_events(data.world, &event)
-            .unwrap_or(Trans::None)
+        handle_common_events(data.world, &event).unwrap_or(Trans::None)
     }
 }
 
-fn handle_common_events<T>(
-    world: &mut World,
-    event: &StateEvent,
-) -> Option<Trans<T, StateEvent>> {
+fn handle_common_events<T>(world: &mut World, event: &StateEvent) -> Option<Trans<T, StateEvent>> {
     use ecs::*;
 
     match event {
-        StateEvent::Window(event) => if is_close_requested(event) || is_key_down(event, VirtualKeyCode::Escape) {
-            // Player wants to exit.
-            Some(Trans::Quit)
-        } else if is_key_down(&event, VirtualKeyCode::Space) {
-            // Debugging: print the name and transform of all named and transformy entities.
-            world.exec(
-                |(named, transforms): (ReadStorage<'_, Named>, ReadStorage<'_, Transform>)| {
-                    for (name, transform) in (&named, &transforms).join() {
-                        println!("{} => {:?}", name.name, transform.translation());
-                    }
-                },
-            );
+        StateEvent::Window(event) => {
+            if is_close_requested(event) || is_key_down(event, VirtualKeyCode::Escape) {
+                // Player wants to exit.
+                Some(Trans::Quit)
+            } else if is_key_down(&event, VirtualKeyCode::Space) {
+                // Debugging: print the name and transform of all named and transformy entities.
+                world.exec(
+                    |(named, transforms): (ReadStorage<'_, Named>, ReadStorage<'_, Transform>)| {
+                        for (name, transform) in (&named, &transforms).join() {
+                            println!("{} => {:?}", name.name, transform.translation());
+                        }
+                    },
+                );
 
-            let board = world.read_resource::<Board>();
-            println!("Board => {:?}", &*board);
+                let board = world.read_resource::<Board>();
+                println!("Board => {:?}", &*board);
 
-            None
-        } else { None },
+                None
+            } else {
+                None
+            }
+        }
         _ => None,
     }
 }

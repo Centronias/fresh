@@ -1,6 +1,4 @@
-use amethyst::{
-    ecs::*,
-};
+use amethyst::ecs::*;
 
 #[derive(Component)]
 pub struct Tile {

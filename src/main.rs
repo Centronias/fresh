@@ -1,20 +1,17 @@
-#![warn(
-    rust_2018_idioms,
-    clippy::all
-)]
+#![warn(rust_2018_idioms, clippy::all)]
 
 use amethyst::prelude::*;
 use amethyst::{
     core::*,
+    input::InputBundle,
+    input::StringBindings,
+    renderer::*,
     renderer::{
         plugins::{RenderFlat2D, RenderToWindow},
         types::DefaultBackend,
     },
-    renderer::*,
     utils::*,
     LoggerConfig,
-    input::InputBundle,
-    input::StringBindings,
 };
 
 mod states;
@@ -36,8 +33,9 @@ fn main() -> amethyst::Result<()> {
     let game_data = GameDataBuilder::default()
         .with_bundle(TransformBundle::new())?
         .with_bundle(
-            InputBundle::<StringBindings>::new().with_bindings_from_file(input_config_path)?
-        )?.with_bundle(
+            InputBundle::<StringBindings>::new().with_bindings_from_file(input_config_path)?,
+        )?
+        .with_bundle(
             RenderingBundle::<DefaultBackend>::new()
                 .with_plugin(
                     RenderToWindow::from_config_path(display_config_path)?

@@ -1,11 +1,6 @@
-use amethyst::prelude::*;
-use amethyst::{
-    assets::*,
-    core::*,
-    ecs::Entity,
-    renderer::*,
-};
 use super::components::*;
+use amethyst::prelude::*;
+use amethyst::{assets::*, core::*, ecs::Entity, renderer::*};
 
 static TILES_DIM: u32 = 3;
 static BOARD_SIZE: u32 = 600;
@@ -19,13 +14,21 @@ pub struct Board {
 }
 
 fn take_if_in(v: u32, start: u32, end: u32) -> Option<u32> {
-    if (start..end).contains(&v) { Some(v) } else { None }
+    if (start..end).contains(&v) {
+        Some(v)
+    } else {
+        None
+    }
 }
 
 impl Board {
     pub fn world_to_idx(&self, loc: amethyst::core::math::geometry::Point3<f32>) -> Option<u32> {
         let mut board_corner_x_board: Transform = Transform::default();
-        board_corner_x_board.set_translation_xyz(BOARD_SIZE as f32 / 2.0, BOARD_SIZE as f32 / 2.0, 0.0);
+        board_corner_x_board.set_translation_xyz(
+            BOARD_SIZE as f32 / 2.0,
+            BOARD_SIZE as f32 / 2.0,
+            0.0,
+        );
 
         let mut board_x_cursor = Transform::default();
         board_x_cursor.set_translation_xyz(loc.x, -loc.y, 0.0);
@@ -37,11 +40,8 @@ impl Board {
         let x = x as u32;
         let y = y as u32;
 
-        self.check_x(x).and_then(|x|
-            self.check_y(y).map(|y|
-                self.xy_idx((x, y))
-            )
-        )
+        self.check_x(x)
+            .and_then(|x| self.check_y(y).map(|y| self.xy_idx((x, y))))
     }
 
     fn load_sprite_sheet(&self, world: &mut World, png_path: &str) -> Handle<SpriteSheet> {
@@ -51,7 +51,7 @@ impl Board {
             png_path,
             ImageFormat::default(),
             (),
-            &world.read_resource::<AssetStorage<Texture>>()
+            &world.read_resource::<AssetStorage<Texture>>(),
         );
 
         let img_per_tile = 1.0 / TILES_DIM as f32;
@@ -69,20 +69,13 @@ impl Board {
             let top = img_per_tile * y as f32;
             let bottom = img_per_tile * (y + 1) as f32;
 
-            let sprite = Sprite::from((
-                sprite_size,
-                offsets,
-                [left, right, bottom, top]
-            ));
+            let sprite = Sprite::from((sprite_size, offsets, [left, right, bottom, top]));
 
             sprites.push(sprite);
         }
 
         loader.load_from_data(
-            SpriteSheet {
-                texture,
-                sprites,
-            },
+            SpriteSheet { texture, sprites },
             (),
             &world.read_resource::<AssetStorage<SpriteSheet>>(),
         )
@@ -98,7 +91,9 @@ impl Board {
                 if *index == Some(expected) {
                     expected += 1;
                     true
-                } else { false }
+                } else {
+                    false
+                }
             })
         }
     }
@@ -137,23 +132,16 @@ impl Board {
     }
 
     fn create_board_entity(&self, world: &mut World) -> Entity {
-        let sprite_sheet = self.load_sprite_sheet(
-            world,
-            "background.jpg"
-        );
+        let sprite_sheet = self.load_sprite_sheet(world, "background.jpg");
 
         // TODO Put text on the tiles to make it easier to figure out which is which https://github.com/amethyst/amethyst/blob/master/examples/pong_tutorial_05/pong.rs#L206
         let mut transform = Transform::default();
         transform.set_translation_z(-10.0);
-        let board = world
-            .create_entity()
-            .with(transform)
-            .named("Board")
-            .build();
+        let board = world.create_entity().with(transform).named("Board").build();
 
         for index in 1..(self.height * self.width) {
             self.init_tile(world, sprite_sheet.clone(), index, board);
-        };
+        }
 
         board
     }
@@ -163,21 +151,30 @@ impl Board {
         world: &mut World,
         sprite_sheet: Handle<SpriteSheet>,
         index: u32,
-        parent: Entity
+        parent: Entity,
     ) -> Entity {
         let (x, y) = self.idx_xy(index);
 
         let mut board_x_board_corner = Transform::default();
-        board_x_board_corner.set_translation_xyz(-(BOARD_SIZE as f32 / 2.0), -(BOARD_SIZE as f32 / 2.0), 0.0);
+        board_x_board_corner.set_translation_xyz(
+            -(BOARD_SIZE as f32 / 2.0),
+            -(BOARD_SIZE as f32 / 2.0),
+            0.0,
+        );
 
         let mut board_corner_x_tile_corner = Transform::default();
-        board_corner_x_tile_corner.set_translation_xyz(x as f32 * TILE_SIZE, y as f32 * TILE_SIZE, 0.0);
+        board_corner_x_tile_corner.set_translation_xyz(
+            x as f32 * TILE_SIZE,
+            y as f32 * TILE_SIZE,
+            0.0,
+        );
 
         let mut tile_corner_x_tile = Transform::default();
         tile_corner_x_tile.set_translation_xyz(TILE_SIZE / 2.0, TILE_SIZE / 2.0, 0.0);
 
         let mut transform = board_x_board_corner.clone();
-        transform.concat(&board_corner_x_tile_corner)
+        transform
+            .concat(&board_corner_x_tile_corner)
             .concat(&tile_corner_x_tile)
             .set_translation_z(-3.0);
 
