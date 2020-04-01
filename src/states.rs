@@ -1,31 +1,15 @@
 use amethyst::prelude::*;
 use amethyst::{
-    assets::{AssetStorage, Loader},
     core::*,
     core::{
-        math::{Point3, Vector2, Vector3},
-        Named, Parent, Time, Transform, TransformBundle,
+        math::{Point3, Vector2},
+        Named, Parent, Transform,
     },
-    ecs::{
-        Component, Entities, Entity, Join, LazyUpdate, NullStorage, Read, ReadExpect, ReadStorage,
-        System, WriteStorage,
-    },
-    input::{is_close_requested, is_key_down, InputBundle, InputHandler, StringBindings},
+    ecs::{Entity, Join},
+    input::{is_close_requested, is_key_down, InputHandler, StringBindings},
     input::{InputEvent, VirtualKeyCode},
-    renderer::{
-        camera::{ActiveCamera, Camera, Projection},
-        debug_drawing::DebugLinesComponent,
-        formats::texture::ImageFormat,
-        palette::Srgba,
-        sprite::{SpriteRender, SpriteSheet, SpriteSheetFormat, SpriteSheetHandle},
-        transparent::Transparent,
-        types::DefaultBackend,
-        RenderDebugLines, RenderFlat2D, RenderToWindow, RenderingBundle, Texture,
-    },
-    utils::application_root_dir,
+    renderer::camera::Camera,
     window::ScreenDimensions,
-    window::*,
-    winit,
     winit::MouseButton,
 };
 
@@ -124,7 +108,7 @@ impl SimpleState for Awaiting {
                         if let Some(idx) = Awaiting::current_cursor_as_board_idx(data.world) {
                             dbg!(idx);
                             // TODO Only transition if there's an open slot adjacent to the selected tile.
-                            Trans::Push(Box::new(ProcessingMove { idx }))
+                            Trans::Push(Box::new(ProcessingMove { _idx: idx }))
                         } else {
                             Trans::None
                         }
@@ -154,7 +138,7 @@ impl SimpleState for Awaiting {
 
 /// A state representing the game playing out a move, no input except exiting is accepted..
 struct ProcessingMove {
-    idx: u32,
+    _idx: u32,
 }
 impl SimpleState for ProcessingMove {
     fn on_start(&mut self, _data: StateData<'_, GameData<'_, '_>>) {

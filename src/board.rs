@@ -2,7 +2,7 @@ use super::components::*;
 use amethyst::prelude::*;
 use amethyst::{assets::*, core::*, ecs::Entity, renderer::*};
 
-static TILES_DIM: u32 = 3;
+static TILES_DIM: u32 = 4;
 static BOARD_SIZE: u32 = 600;
 static TILE_SIZE: f32 = BOARD_SIZE as f32 / TILES_DIM as f32;
 
