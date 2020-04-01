@@ -23,6 +23,27 @@ fn take_if_in(v: u32, start: u32, end: u32) -> Option<u32> {
 }
 
 impl Board {
+    pub fn world_to_idx(&self, loc: amethyst::core::math::geometry::Point3<f32>) -> Option<u32> {
+        let mut board_corner_x_board: Transform = Transform::default();
+        board_corner_x_board.set_translation_xyz(BOARD_SIZE as f32 / 2.0, BOARD_SIZE as f32 / 2.0, 0.0);
+
+        let mut board_x_cursor = Transform::default();
+        board_x_cursor.set_translation_xyz(loc.x, -loc.y, 0.0);
+
+        board_corner_x_board.concat(&board_x_cursor);
+
+        let x = board_corner_x_board.translation().x / BOARD_SIZE as f32 * TILES_DIM as f32;
+        let y = board_corner_x_board.translation().y / BOARD_SIZE as f32 * TILES_DIM as f32;
+        let x = x as u32;
+        let y = y as u32;
+
+        self.check_x(x).and_then(|x|
+            self.check_y(y).map(|y|
+                self.xy_idx((x, y))
+            )
+        )
+    }
+
     fn load_sprite_sheet(&self, world: &mut World, png_path: &str) -> Handle<SpriteSheet> {
         let loader = world.read_resource::<Loader>();
 
@@ -34,7 +55,6 @@ impl Board {
         );
 
         let img_per_tile = 1.0 / TILES_DIM as f32;
-        dbg!(img_per_tile);
 
         let sprite_size = (TILE_SIZE, TILE_SIZE);
         let offsets = [0.0; 2]; //[(TILE_SIZE as f32) / 2.0; 2];
@@ -196,7 +216,7 @@ impl Board {
         (x, y)
     }
 
-    fn _xy_idx(&self, (x, y): (u32, u32)) -> u32 {
+    fn xy_idx(&self, (x, y): (u32, u32)) -> u32 {
         let x = self.check_x(x).unwrap();
         let y = self.check_y(y).unwrap();
 
@@ -259,15 +279,15 @@ fn xy_idx() {
         tiles: vec![None, Some(2), Some(1), Some(3)],
     };
 
-    let idx = board._xy_idx((0, 0));
+    let idx = board.xy_idx((0, 0));
     assert_eq!(idx, 0);
 
-    let idx = board._xy_idx((1, 0));
+    let idx = board.xy_idx((1, 0));
     assert_eq!(idx, 1);
 
-    let idx = board._xy_idx((0, 1));
+    let idx = board.xy_idx((0, 1));
     assert_eq!(idx, 2);
-    let idx = board._xy_idx((1, 1));
+    let idx = board.xy_idx((1, 1));
 
     assert_eq!(idx, 3);
 }

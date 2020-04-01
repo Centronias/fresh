@@ -13,13 +13,16 @@ use amethyst::{
     renderer::*,
     utils::*,
     LoggerConfig,
+    input::InputBundle,
+    input::StringBindings,
 };
 
 mod states;
 use states::*;
-use crate::components::Tile;
 
 mod components;
+use crate::components::Tile;
+
 mod board;
 
 fn main() -> amethyst::Result<()> {
@@ -28,10 +31,13 @@ fn main() -> amethyst::Result<()> {
     let app_root = application_root_dir()?;
     let assets_directory = app_root.join("assets");
     let display_config_path = app_root.join("config/display.ron");
+    let input_config_path = app_root.join("config/input.ron");
 
     let game_data = GameDataBuilder::default()
         .with_bundle(TransformBundle::new())?
         .with_bundle(
+            InputBundle::<StringBindings>::new().with_bindings_from_file(input_config_path)?
+        )?.with_bundle(
             RenderingBundle::<DefaultBackend>::new()
                 .with_plugin(
                     RenderToWindow::from_config_path(display_config_path)?

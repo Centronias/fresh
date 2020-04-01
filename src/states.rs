@@ -1,10 +1,33 @@
 use amethyst::prelude::*;
 use amethyst::{
     core::*,
-    ecs::Entity,
     renderer::*,
     window::*,
-    input::{VirtualKeyCode, is_key_down, is_close_requested},
+    input::{VirtualKeyCode, InputEvent},
+    winit::MouseButton,
+    assets::{AssetStorage, Loader},
+    core::{
+        math::{Point3, Vector2, Vector3},
+        Named, Parent, Time, Transform, TransformBundle,
+    },
+    ecs::{
+        Component, Entities, Entity, Join, LazyUpdate, NullStorage, Read, ReadExpect, ReadStorage,
+        System, WriteStorage,
+    },
+    input::{is_close_requested, is_key_down, InputBundle, InputHandler, StringBindings},
+    renderer::{
+        camera::{ActiveCamera, Camera, Projection},
+        debug_drawing::DebugLinesComponent,
+        formats::texture::ImageFormat,
+        palette::Srgba,
+        sprite::{SpriteRender, SpriteSheet, SpriteSheetFormat, SpriteSheetHandle},
+        transparent::Transparent,
+        types::DefaultBackend,
+        RenderDebugLines, RenderFlat2D, RenderToWindow, RenderingBundle, Texture,
+    },
+    utils::application_root_dir,
+    window::ScreenDimensions,
+    winit,
 };
 
 use super::board::*;
@@ -54,15 +77,81 @@ impl SimpleState for Starting {
 
 /// A state representing the game awaiting some input from the player. Waits until the player clicks on a tile or exits.
 struct Awaiting;
+impl Awaiting {
+    fn current_cursor_as_board_idx(world: &World) -> Option<u32> {
+        let input = world.read_resource::<InputHandler<StringBindings>>();
+        let dimensions = world.read_resource::<ScreenDimensions>();
+        let cameras = world.read_storage::<Camera>();
+        let transforms = world.read_storage::<Transform>();
+
+        let mouse_position = input.mouse_position().expect("Mouse should be on the screen if we're detecting the keypress");
+
+        let ct: (&Camera, &Transform) = (&cameras, &transforms).join().next().expect("Didn't find the camera");
+        let (camera, transform) = ct;
+
+        let dimensions = &*dimensions;
+        let screen_dims = Vector2::new(dimensions.width(), dimensions.height());
+
+        let pos: Point3<f32> = camera.projection().screen_to_world_point(
+            Point3::new(
+                mouse_position.0,
+                mouse_position.1,
+                transform.translation().z
+            ),
+            screen_dims,
+            transform
+        );
+
+        let board = world.read_resource::<Board>();
+        board.world_to_idx(pos)
+    }
+}
+
 impl SimpleState for Awaiting {
     fn handle_event(
         &mut self,
         data: StateData<'_, GameData<'_, '_>>,
         event: StateEvent,
     ) -> SimpleTrans {
-        handle_common_events(data.world, &event).unwrap_or_else(|| {
-            // TODO This is where we'd put the situation where an input has been given and we want to change states.
-            Trans::Push(Box::new(ProcessingMove))
+        handle_common_events(data.world, &event).unwrap_or_else(|| match event {
+            StateEvent::Input(input_event) => match input_event {
+                InputEvent::MouseButtonReleased(mouse_button) => match mouse_button {
+                    MouseButton::Left => {
+                        let input = data.world.read_resource::<InputHandler<StringBindings>>();
+                        let dimensions = data.world.read_resource::<ScreenDimensions>();
+                        let cameras = data.world.read_storage::<Camera>();
+                        let transforms = data.world.read_storage::<Transform>();
+
+                        let mouse_position = input.mouse_position().expect("Mouse should be on the screen if we're detecting the keypress");
+
+                        let ct: (&Camera, &Transform) = (&cameras, &transforms).join().next().expect("Didn't find the camera");
+                        let (camera, transform) = ct;
+
+                        let screen_dims = Vector2::new(dimensions.width(), dimensions.height());
+
+                        let pos = camera.projection().screen_to_world_point(
+                            Point3::new(
+                                mouse_position.0,
+                                mouse_position.1,
+                                transform.translation().z
+                            ),
+                            screen_dims,
+                            transform
+                        );
+
+                        if let Some(idx) = Awaiting::current_cursor_as_board_idx(data.world) {
+                            dbg!(idx);
+                            // TODO Only transition if there's an open slot adjacent to the selected tile.
+                            Trans::Push(Box::new(ProcessingMove { idx }))
+                        } else {
+                            Trans::None
+                        }
+                    },
+                    _ => Trans::None
+                },
+                _ => Trans::None
+            },
+            _ => Trans::None
         })
     }
 
@@ -79,10 +168,16 @@ impl SimpleState for Awaiting {
 }
 
 /// A state representing the game playing out a move, no input except exiting is accepted..
-struct ProcessingMove;
+struct ProcessingMove {
+    idx: u32,
+}
 impl SimpleState for ProcessingMove {
     fn on_start(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
-        // TODO Update the data for this state to include the tile selected and where it's headed.
+        println!("Starting processing move!");
+        // TODO We know which slot on the board is moving, and we can determine which slot on the board is empty.
+        //  Put together a vector for the move
+        //  Figure out a constant number of updates over which to perform the move
+        //  Divide the move vector by that number of updates...
     }
 
     fn handle_event(
@@ -97,6 +192,8 @@ impl SimpleState for ProcessingMove {
 
     fn update(&mut self, _data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
         // TODO This is where we'd "simulate" the movement of tiles.
+        //  ... and then apply the update step with each update.
+        //  Once we get close enough, decide that we're done and pop back.
         if true {
             // Tile has arrived, pop back to awaiting input state.
             Trans::Pop
