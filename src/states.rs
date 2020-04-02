@@ -40,7 +40,7 @@ impl SimpleState for Starting {
         let world = data.world;
         world.register::<Named>();
 
-        let board = Board::init_board(world);
+        let board = Board::init_board(4, 600, world);
         let _camera = initialise_camera(world, board);
     }
 
@@ -61,7 +61,7 @@ impl SimpleState for Starting {
 /// A state representing the game awaiting some input from the player. Waits until the player clicks on a tile or exits.
 struct Awaiting;
 impl Awaiting {
-    fn current_cursor_as_board_idx(world: &World) -> Option<u32> {
+    fn current_cursor_as_valid_board_idx(world: &World) -> Option<u32> {
         let input = world.read_resource::<InputHandler<StringBindings>>();
         let dimensions = world.read_resource::<ScreenDimensions>();
         let cameras = world.read_storage::<Camera>();
@@ -91,7 +91,9 @@ impl Awaiting {
         );
 
         let board = world.read_resource::<Board>();
-        board.world_to_idx(pos)
+        board
+            .world_idx(pos)
+            .filter(|idx| !board.is_empty(*idx) && board.empty_adjacent(*idx).is_some())
     }
 }
 
@@ -105,7 +107,7 @@ impl SimpleState for Awaiting {
             StateEvent::Input(input_event) => match input_event {
                 InputEvent::MouseButtonReleased(mouse_button) => match mouse_button {
                     MouseButton::Left => {
-                        if let Some(idx) = Awaiting::current_cursor_as_board_idx(data.world) {
+                        if let Some(idx) = Awaiting::current_cursor_as_valid_board_idx(data.world) {
                             dbg!(idx);
                             // TODO Only transition if there's an open slot adjacent to the selected tile.
                             Trans::Push(Box::new(ProcessingMove { _idx: idx }))

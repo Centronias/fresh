@@ -1,47 +1,147 @@
 use super::components::*;
+use amethyst::core::math::geometry::Point3;
+use amethyst::core::math::Vector3;
 use amethyst::prelude::*;
 use amethyst::{assets::*, core::*, ecs::Entity, renderer::*};
 
-static TILES_DIM: u32 = 4;
-static BOARD_SIZE: u32 = 600;
-static TILE_SIZE: f32 = BOARD_SIZE as f32 / TILES_DIM as f32;
+type TileId = u32;
 
+///
+/// Slots numbers:
+/// + - - +
+/// | 2 3 | 1
+/// | 0 1 | 0
+/// + - - + y
+/// x 0 1
+///
 #[derive(Debug)]
 pub struct Board {
-    height: u32,
-    width: u32,
-    tiles: Vec<Option<u32>>,
-}
-
-fn take_if_in(v: u32, start: u32, end: u32) -> Option<u32> {
-    if (start..end).contains(&v) {
-        Some(v)
-    } else {
-        None
-    }
+    tiles_dim: u32,
+    tiles: Vec<Option<TileId>>,
+    board_size: f32,
 }
 
 impl Board {
-    pub fn world_to_idx(&self, loc: amethyst::core::math::geometry::Point3<f32>) -> Option<u32> {
-        let mut board_corner_x_board: Transform = Transform::default();
-        board_corner_x_board.set_translation_xyz(
-            BOARD_SIZE as f32 / 2.0,
-            BOARD_SIZE as f32 / 2.0,
-            0.0,
-        );
+    /// Creates and returns an entity representing the board with child entities representing the tiles on the board.
+    /// Also adds a Board to the world's storage.
+    pub fn init_board(tiles_dim: u32, screen_size: u32, world: &mut World) -> Entity {
+        let board = {
+            let num_tiles = tiles_dim * tiles_dim;
+            let mut tiles = Vec::with_capacity((num_tiles) as usize);
+            tiles.push(None);
+            for i in 1..num_tiles {
+                tiles.push(Some(i));
+            }
 
-        let mut board_x_cursor = Transform::default();
-        board_x_cursor.set_translation_xyz(loc.x, -loc.y, 0.0);
+            let mut board = Board {
+                tiles_dim,
+                tiles,
+                board_size: screen_size as f32,
+            };
 
-        board_corner_x_board.concat(&board_x_cursor);
+            board.scramble();
+            board
+        };
 
-        let x = board_corner_x_board.translation().x / BOARD_SIZE as f32 * TILES_DIM as f32;
-        let y = board_corner_x_board.translation().y / BOARD_SIZE as f32 * TILES_DIM as f32;
-        let x = x as u32;
-        let y = y as u32;
+        let ret = board.create_entity(world);
 
-        self.check_x(x)
-            .and_then(|x| self.check_y(y).map(|y| self.xy_idx((x, y))))
+        world.insert(board);
+
+        ret
+    }
+
+    fn create_entity(&self, world: &mut World) -> Entity {
+        let sprite_sheet = self.load_sprite_sheet(world, "background.jpg");
+        let transform = Transform::default();
+        let board = world.create_entity().with(transform).named("Board").build();
+
+        for (idx, tile) in self.tiles.iter().enumerate() {
+            if let Some(tile_id) = tile {
+                self.init_tile(world, sprite_sheet.clone(), *tile_id, idx as u32, board);
+            }
+        }
+
+        board
+    }
+
+    fn init_tile(
+        &self,
+        world: &mut World,
+        sprite_sheet: Handle<SpriteSheet>,
+        tile_id: u32,
+        index: u32,
+        parent: Entity,
+    ) -> Entity {
+        let (x, y) = self.idx_xy(index);
+
+        let b_bk = Vector3::new(-(self.board_size / 2.0), -(self.board_size / 2.0), 0.0);
+
+        let tile_size = self.tile_size();
+
+        let bk_tk = Vector3::new(x as f32 * tile_size, y as f32 * tile_size, 0.0);
+
+        let tk_tc = Vector3::new(tile_size / 2.0, tile_size / 2.0, 0.0);
+
+        let b_t = b_bk + bk_tk + tk_tc;
+
+        let mut transform = Transform::default();
+        transform.set_translation(b_t);
+        transform.set_translation_z(-10.0);
+
+        let sprite = SpriteRender {
+            sprite_sheet,
+            sprite_number: tile_id as usize,
+        };
+        world
+            .create_entity()
+            .with(transform)
+            .with(Parent { entity: parent })
+            .with(sprite)
+            .with(Tile { index: tile_id })
+            .named(format!("Tile{}", index))
+            .build()
+    }
+
+    fn scramble(&mut self) {
+        // TODO Do something to scramble the board.
+        self.tiles.reverse();
+    }
+
+    pub fn is_empty(&self, idx: u32) -> bool {
+        self.tiles
+            .get(idx as usize)
+            .map_or(false, |it| it.is_none())
+    }
+
+    pub fn empty_adjacent(&self, idx: u32) -> Option<u32> {
+        let a = self.idx_xy(idx);
+        let b = self.adj_xy(a);
+
+        b.iter()
+            .map(|xy| self.xy_idx(*xy))
+            .filter(|idx| self.is_empty(*idx))
+            .next()
+    }
+
+    pub fn is_solved(&self) -> bool {
+        let mut it = self.tiles.iter();
+        if it
+            .next()
+            .expect("The first element of tiles should exist")
+            .is_some()
+        {
+            false
+        } else {
+            let mut expected = 1;
+            it.all(|index| {
+                if *index == Some(expected) {
+                    expected += 1;
+                    true
+                } else {
+                    false
+                }
+            })
+        }
     }
 
     fn load_sprite_sheet(&self, world: &mut World, png_path: &str) -> Handle<SpriteSheet> {
@@ -54,15 +154,19 @@ impl Board {
             &world.read_resource::<AssetStorage<Texture>>(),
         );
 
-        let img_per_tile = 1.0 / TILES_DIM as f32;
+        // Texture coordinates are from the top left, but the board tiles are from the bottom left.
+        // Invert Y.
 
-        let sprite_size = (TILE_SIZE, TILE_SIZE);
-        let offsets = [0.0; 2]; //[(TILE_SIZE as f32) / 2.0; 2];
+        let img_per_tile = 1.0 / self.tiles_dim as f32;
 
-        let sprite_count = TILES_DIM * TILES_DIM;
+        let sprite_size = (self.tile_size(), self.tile_size());
+        let offsets = [0.0; 2];
+
+        let sprite_count = self.tiles_dim * self.tiles_dim;
         let mut sprites = Vec::with_capacity(sprite_count as usize);
         for i in 0..sprite_count {
             let (x, y) = self.idx_xy(i);
+            let y = self.tiles_dim - (y + 1);
 
             let left = img_per_tile * x as f32;
             let right = img_per_tile * (x + 1) as f32;
@@ -81,174 +185,131 @@ impl Board {
         )
     }
 
-    pub fn is_solved(&self) -> bool {
-        let mut it = self.tiles.iter();
-        if *it.next().expect("The first element of tiles should exist") != None {
-            false
+    pub fn world_idx(&self, loc: Point3<f32>) -> Option<u32> {
+        // TODO Maybe do some reflecty things here.
+        self.world_coord_idx(loc.x, loc.y)
+    }
+
+    /// Turns the given x and y world coordinates into a slot index, if the coordinates correspond to a valid slot.
+    fn world_coord_idx(&self, x: f32, y: f32) -> Option<u32> {
+        // K = Board Corner
+        // C = Cursor
+        // W / B = Board Center
+
+        // Transform from the bottom left corner (where tile 0 0's corner is) to the center.
+        let kxb: Vector3<f32> = Vector3::new(self.board_size / 2.0, self.board_size / 2.0, 0.0);
+
+        // Transform from the center of the board to the cursor (assuming actual screen coords have been into'd world coords).
+        let bxc: Vector3<f32> = Vector3::new(x, y, 0.0);
+
+        // Transform from the bottom left corner to the cursor.
+        let kxc: Vector3<f32> = kxb + bxc;
+
+        // Scale the board coordinates to tile coordinates and floor the float values to specific tile coordinates.
+        let x: f32 = kxc.x / self.board_size * self.tiles_dim as f32;
+        let y: f32 = kxc.y / self.board_size * self.tiles_dim as f32;
+
+        let x = x.floor() as i32;
+        let y = y.floor() as i32;
+
+        // Check that the tile coordinates are actually valid, then transform it to a slot index.
+        self.check_xy((x, y)).map(|xy| self.xy_idx(xy))
+    }
+
+    fn idx_max(&self) -> u32 {
+        self.tiles_dim * self.tiles_dim
+    }
+
+    fn tile_size(&self) -> f32 {
+        self.board_size / self.tiles_dim as f32
+    }
+
+    fn adj_xy(&self, (x, y): (u32, u32)) -> Vec<(u32, u32)> {
+        let x = x as i32;
+        let y = y as i32;
+
+        let it = vec![(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)];
+
+        let mut res = Vec::with_capacity(4);
+        for xy in it {
+            self.check_xy(xy).map(|xy| res.push(xy));
+        }
+
+        res
+    }
+
+    fn check_x(&self, x: i32) -> Option<u32> {
+        if (0i32..(self.tiles_dim as i32)).contains(&x) {
+            Some(x as u32)
         } else {
-            let mut expected = 1;
-            it.all(|index| {
-                if *index == Some(expected) {
-                    expected += 1;
-                    true
-                } else {
-                    false
-                }
-            })
+            None
         }
     }
 
-    pub fn scramble(&mut self) {
-        // TODO Do something to scramble the board.
-        self.tiles.reverse();
-    }
-
-    /// Creates and returns an entity representing the board with child entities representing the tiles on the board.
-    /// Also adds a Board to the world's storage.
-    pub fn init_board(world: &mut World) -> Entity {
-        let board = {
-            let num_tiles = TILES_DIM * TILES_DIM;
-            let mut tiles = Vec::with_capacity((num_tiles) as usize);
-            tiles.push(None);
-            for i in 1..num_tiles {
-                tiles.push(Some(i));
-            }
-
-            let mut board = Board {
-                height: TILES_DIM,
-                width: TILES_DIM,
-                tiles,
-            };
-
-            board.scramble();
-            board
-        };
-
-        let ret = board.create_board_entity(world);
-
-        world.insert(board);
-
-        ret
-    }
-
-    fn create_board_entity(&self, world: &mut World) -> Entity {
-        let sprite_sheet = self.load_sprite_sheet(world, "background.jpg");
-
-        // TODO Put text on the tiles to make it easier to figure out which is which https://github.com/amethyst/amethyst/blob/master/examples/pong_tutorial_05/pong.rs#L206
-        let mut transform = Transform::default();
-        transform.set_translation_z(-10.0);
-        let board = world.create_entity().with(transform).named("Board").build();
-
-        for index in 1..(self.height * self.width) {
-            self.init_tile(world, sprite_sheet.clone(), index, board);
+    fn check_y(&self, x: i32) -> Option<u32> {
+        if (0i32..(self.tiles_dim as i32)).contains(&x) {
+            Some(x as u32)
+        } else {
+            None
         }
-
-        board
     }
 
-    fn init_tile(
-        &self,
-        world: &mut World,
-        sprite_sheet: Handle<SpriteSheet>,
-        index: u32,
-        parent: Entity,
-    ) -> Entity {
-        let (x, y) = self.idx_xy(index);
-
-        let mut board_x_board_corner = Transform::default();
-        board_x_board_corner.set_translation_xyz(
-            -(BOARD_SIZE as f32 / 2.0),
-            -(BOARD_SIZE as f32 / 2.0),
-            0.0,
-        );
-
-        let mut board_corner_x_tile_corner = Transform::default();
-        board_corner_x_tile_corner.set_translation_xyz(
-            x as f32 * TILE_SIZE,
-            y as f32 * TILE_SIZE,
-            0.0,
-        );
-
-        let mut tile_corner_x_tile = Transform::default();
-        tile_corner_x_tile.set_translation_xyz(TILE_SIZE / 2.0, TILE_SIZE / 2.0, 0.0);
-
-        let mut transform = board_x_board_corner.clone();
-        transform
-            .concat(&board_corner_x_tile_corner)
-            .concat(&tile_corner_x_tile)
-            .set_translation_z(-3.0);
-
-        let sprite = SpriteRender {
-            sprite_sheet,
-            sprite_number: index as usize,
-        };
-        world
-            .create_entity()
-            .with(transform)
-            .with(Parent { entity: parent })
-            .with(sprite)
-            .with(Tile { index })
-            .named(format!("Tile{}", index))
-            .build()
+    fn check_xy(&self, (x, y): (i32, i32)) -> Option<(u32, u32)> {
+        self.check_x(x)
+            .and_then(|x| self.check_y(y).map(|y| (x, y)))
     }
 
-    fn check_x(&self, x: u32) -> Option<u32> {
-        take_if_in(x, 0, self.width)
-    }
-
-    fn check_y(&self, y: u32) -> Option<u32> {
-        take_if_in(y, 0, self.height)
-    }
-
-    fn check_idx(&self, idx: u32) -> Option<u32> {
-        take_if_in(idx, 0, self.height * self.width)
+    fn check_idx(&self, idx: i32) -> Option<u32> {
+        if (0i32..(self.idx_max() as i32)).contains(&idx) {
+            Some(idx as u32)
+        } else {
+            None
+        }
     }
 
     fn idx_xy(&self, idx: u32) -> (u32, u32) {
-        let idx = self.check_idx(idx).unwrap();
-
-        let y = idx / self.width;
-        let x = idx % self.height;
+        let y = idx / self.tiles_dim;
+        let x = idx % self.tiles_dim;
 
         (x, y)
     }
 
     fn xy_idx(&self, (x, y): (u32, u32)) -> u32 {
-        let x = self.check_x(x).unwrap();
-        let y = self.check_y(y).unwrap();
-
-        x + y * self.width
+        x + y * self.tiles_dim
     }
 }
 
 #[test]
-fn board_solved() {
+fn checks() {
     let board = Board {
-        height: 2,
-        width: 2,
-        tiles: vec![None, Some(1), Some(2), Some(3)],
-    };
-
-    assert_eq!(board.is_solved(), true);
-}
-
-#[test]
-fn board_not_solved() {
-    let board = Board {
-        height: 2,
-        width: 2,
+        tiles_dim: 2,
         tiles: vec![None, Some(2), Some(1), Some(3)],
+        board_size: 600.0,
     };
 
-    assert_eq!(board.is_solved(), false);
+    assert_eq!(board.check_x(1), Some(1));
+    assert_eq!(board.check_y(0), Some(0));
+    assert_eq!(board.check_idx(3), Some(3));
+    assert_eq!(board.check_xy((1, 1)), Some((1, 1)));
+
+    assert_eq!(board.check_x(3), None);
+    assert_eq!(board.check_y(4), None);
+    assert_eq!(board.check_idx(8), None);
+    assert_eq!(board.check_xy((1, 2)), None);
+
+    assert_eq!(board.check_x(-1), None);
+    assert_eq!(board.check_y(-2), None);
+    assert_eq!(board.check_idx(-2), None);
+    assert_eq!(board.check_xy((-1, -2)), None);
+    assert_eq!(board.check_xy((-1, -2)), None);
 }
 
 #[test]
 fn idx_xy() {
     let board = Board {
-        height: 2,
-        width: 2,
+        tiles_dim: 2,
         tiles: vec![None, Some(2), Some(1), Some(3)],
+        board_size: 600.0,
     };
 
     let (x, y) = board.idx_xy(0);
@@ -271,9 +332,9 @@ fn idx_xy() {
 #[test]
 fn xy_idx() {
     let board = Board {
-        height: 2,
-        width: 2,
+        tiles_dim: 2,
         tiles: vec![None, Some(2), Some(1), Some(3)],
+        board_size: 600.0,
     };
 
     let idx = board.xy_idx((0, 0));
@@ -290,18 +351,64 @@ fn xy_idx() {
 }
 
 #[test]
-fn checks() {
+fn world_idx() {
     let board = Board {
-        height: 2,
-        width: 2,
+        tiles_dim: 2,
         tiles: vec![None, Some(2), Some(1), Some(3)],
+        board_size: 600.0,
     };
 
-    assert_eq!(board.check_x(1), Some(1));
-    assert_eq!(board.check_y(0), Some(0));
-    assert_eq!(board.check_idx(3), Some(3));
+    assert_eq!(board.world_coord_idx(-200.0, -200.0), Some(0));
+    assert_eq!(board.world_coord_idx(200.0, -200.0), Some(1));
+    assert_eq!(board.world_coord_idx(-200.0, 200.0), Some(2));
+    assert_eq!(board.world_coord_idx(200.0, 200.0), Some(3));
+    assert_eq!(board.world_coord_idx(400.0, -200.0), None);
+}
 
-    assert_eq!(board.check_x(3), None);
-    assert_eq!(board.check_y(4), None);
-    assert_eq!(board.check_idx(8), None);
+#[test]
+fn adj() {
+    let board = Board {
+        tiles_dim: 2,
+        tiles: vec![None, Some(2), Some(1), Some(3)],
+        board_size: 600.0,
+    };
+
+    let adj = board.adj_xy((0, 0));
+    assert_eq!(adj.contains(&(1, 0)), true);
+    assert_eq!(adj.contains(&(0, 1)), true);
+    assert_eq!(adj.len(), 2);
+
+    let board = Board {
+        tiles_dim: 3,
+        tiles: vec![
+            None,
+            Some(2),
+            Some(1),
+            Some(2),
+            Some(2),
+            Some(1),
+            Some(2),
+            Some(2),
+            Some(1),
+        ],
+        board_size: 600.0,
+    };
+
+    let adj = board.adj_xy((1, 1));
+    assert_eq!(adj.contains(&(1, 0)), true);
+    assert_eq!(adj.contains(&(0, 1)), true);
+    assert_eq!(adj.contains(&(1, 2)), true);
+    assert_eq!(adj.contains(&(2, 1)), true);
+    assert_eq!(adj.len(), 4);
+}
+
+#[test]
+fn board_solved() {
+    let board = Board {
+        tiles_dim: 2,
+        tiles: vec![None, Some(1), Some(2), Some(3)],
+        board_size: 600.0,
+    };
+
+    assert_eq!(board.is_solved(), true);
 }
