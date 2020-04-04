@@ -198,7 +198,6 @@ impl Board {
     }
 
     pub fn world_idx(&self, loc: Point3<f32>) -> Option<u32> {
-        // TODO Maybe do some reflecty things here.
         self.world_coord_idx(loc.x, loc.y)
     }
 

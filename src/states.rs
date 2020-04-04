@@ -54,7 +54,6 @@ impl SimpleState for Starting {
     }
 
     fn update(&mut self, _data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
-        // TODO This is probably a bad way to do it, but assume that once we start updating, loading is done.
         Trans::Switch(Box::new(Awaiting))
     }
 }
@@ -131,10 +130,7 @@ impl SimpleState for Awaiting {
         &mut self,
         StateData { world, .. }: &mut StateData<'_, GameData<'_, '_>>,
     ) -> SimpleTrans {
-        // TODO If we resume and the board is solved, the player wins.
-        let board = world.read_resource::<Board>();
-
-        if board.is_solved() {
+        if world.read_resource::<Board>().is_solved() {
             Trans::Replace(Box::new(Winner {}))
         } else {
             Trans::None
