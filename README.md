@@ -1,4 +1,4 @@
-# fresh
+# sliding-tile
 
 A simple sliding tile game. You can replace the image used by swapping out `assets/background.jpg` for whatever
 Amethyst can handle (eg. `.png`s). Additionally, you can change the number of tiles in the board by changing the value
