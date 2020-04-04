@@ -4,7 +4,7 @@ use amethyst::core::math::Vector3;
 use amethyst::prelude::*;
 use amethyst::{assets::*, core::*, ecs::Entity, renderer::*};
 
-type TileId = u32;
+pub type TileId = u32;
 
 ///
 /// Slots numbers:
@@ -102,9 +102,21 @@ impl Board {
             .build()
     }
 
+    pub fn move_tile_at(&mut self, idx: u32) {
+        let to = self.empty_adjacent(idx).unwrap();
+
+        let tiles = &mut self.tiles;
+
+        tiles.swap(to as usize, idx as usize)
+    }
+
     fn scramble(&mut self) {
         // TODO Do something to scramble the board.
-        self.tiles.reverse();
+        self.move_tile_at(1)
+    }
+
+    pub fn tile_at(&self, slot: u32) -> Option<TileId> {
+        self.tiles.get(slot as usize).and_then(|it| *it)
     }
 
     pub fn is_empty(&self, idx: u32) -> bool {
@@ -188,6 +200,32 @@ impl Board {
     pub fn world_idx(&self, loc: Point3<f32>) -> Option<u32> {
         // TODO Maybe do some reflecty things here.
         self.world_coord_idx(loc.x, loc.y)
+    }
+
+    pub fn idx_world(&self, idx: i32) -> Option<Point3<f32>> {
+        // K = Board Corner
+        // C = Cursor
+        // W / B = Board Center
+
+        self.check_idx(idx).map(|idx| {
+            let (x, y) = self.idx_xy(idx);
+            let x = x as f32 * self.board_size / self.tiles_dim as f32;
+            let y = y as f32 * self.board_size / self.tiles_dim as f32;
+
+            let kxtk = Vector3::new(x, y, 0.0);
+
+            let tkxt = Vector3::new(self.board_size / self.tiles_dim as f32 / 2.0, self.board_size / self.tiles_dim as f32 / 2.0, 0.0);
+
+            // Transform from the bottom left corner (where tile 0 0's corner is) to the center.
+            let kxb: Vector3<f32> = Vector3::new(self.board_size / 2.0, self.board_size / 2.0, 0.0);
+
+            let xyz: Vector3<f32> = -kxb + kxtk + tkxt;
+            let x = xyz.x;
+            let y = xyz.y;
+            let z = xyz.z;
+
+            Point3::new(x, y, z)
+        })
     }
 
     /// Turns the given x and y world coordinates into a slot index, if the coordinates correspond to a valid slot.
@@ -381,15 +419,9 @@ fn adj() {
     let board = Board {
         tiles_dim: 3,
         tiles: vec![
-            None,
-            Some(2),
-            Some(1),
-            Some(2),
-            Some(2),
-            Some(1),
-            Some(2),
-            Some(2),
-            Some(1),
+            None, Some(2), Some(1),
+            Some(2), Some(2), Some(1),
+            Some(2), Some(2), Some(1),
         ],
         board_size: 600.0,
     };
@@ -400,6 +432,19 @@ fn adj() {
     assert_eq!(adj.contains(&(1, 2)), true);
     assert_eq!(adj.contains(&(2, 1)), true);
     assert_eq!(adj.len(), 4);
+}
+
+#[test]
+fn idx_world() {
+    let board = Board {
+        tiles_dim: 2,
+        tiles: vec![None, Some(2), Some(1), Some(3)],
+        board_size: 600.0,
+    };
+
+    assert_eq!(board.idx_world(0), Some(Point3::new(-150.0, -150.0, 0.0)));
+    assert_eq!(board.idx_world(2), Some(Point3::new(-150.0, 150.0, 0.0)));
+    assert_eq!(board.idx_world(5), None);
 }
 
 #[test]

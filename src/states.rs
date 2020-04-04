@@ -2,7 +2,7 @@ use amethyst::prelude::*;
 use amethyst::{
     core::*,
     core::{
-        math::{Point3, Vector2},
+        math::{Point3, Vector2, Vector3},
         Named, Parent, Transform,
     },
     ecs::{Entity, Join},
@@ -14,6 +14,7 @@ use amethyst::{
 };
 
 use super::board::*;
+use crate::components::Tile;
 
 fn initialise_camera(world: &mut World, parent: Entity) -> Entity {
     let (width, height) = {
@@ -61,7 +62,7 @@ impl SimpleState for Starting {
 /// A state representing the game awaiting some input from the player. Waits until the player clicks on a tile or exits.
 struct Awaiting;
 impl Awaiting {
-    fn current_cursor_as_valid_board_idx(world: &World) -> Option<u32> {
+    fn current_to_move(world: &World) -> Option<Move> {
         let input = world.read_resource::<InputHandler<StringBindings>>();
         let dimensions = world.read_resource::<ScreenDimensions>();
         let cameras = world.read_storage::<Camera>();
@@ -93,7 +94,12 @@ impl Awaiting {
         let board = world.read_resource::<Board>();
         board
             .world_idx(pos)
-            .filter(|idx| !board.is_empty(*idx) && board.empty_adjacent(*idx).is_some())
+            .filter(|from| !board.is_empty(*from))
+            .and_then(|from| {
+                board.empty_adjacent(from).map(|to| {
+                    Move::new(&*board, from, to)
+                })
+            })
     }
 }
 
@@ -107,10 +113,8 @@ impl SimpleState for Awaiting {
             StateEvent::Input(input_event) => match input_event {
                 InputEvent::MouseButtonReleased(mouse_button) => match mouse_button {
                     MouseButton::Left => {
-                        if let Some(idx) = Awaiting::current_cursor_as_valid_board_idx(data.world) {
-                            dbg!(idx);
-                            // TODO Only transition if there's an open slot adjacent to the selected tile.
-                            Trans::Push(Box::new(ProcessingMove { _idx: idx }))
+                        if let Some(tile_move) = Awaiting::current_to_move(data.world) {
+                            Trans::Push(Box::new(ProcessingMove { tile_move, steps_completed: 0 }))
                         } else {
                             Trans::None
                         }
@@ -138,19 +142,38 @@ impl SimpleState for Awaiting {
     }
 }
 
+#[derive(Debug, Clone)]
+struct Move {
+    /// The slot we're moving from.
+    from: u32,
+    /// The slot we're moving to.
+    to: u32,
+    /// The id of the tile being moved.
+    tile: TileId,
+    move_step: Vector3<f32>,
+}
+
+impl Move {
+    const NUM_STEPS: u32 = 10;
+
+    fn new(board: &Board, from: u32, to: u32) -> Self {
+        let tile = board.tile_at(from).unwrap();
+        let f_pos = board.idx_world(from as i32).unwrap();
+        let t_pos = board.idx_world(to as i32).unwrap();
+
+        let move_step: Vector3<f32> = (t_pos - f_pos).scale(1.0 / Move::NUM_STEPS as f32);
+
+        Move { from, to, tile, move_step }
+    }
+}
+
 /// A state representing the game playing out a move, no input except exiting is accepted..
 struct ProcessingMove {
-    _idx: u32,
+    tile_move: Move,
+    steps_completed: u32,
 }
-impl SimpleState for ProcessingMove {
-    fn on_start(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
-        println!("Starting processing move!");
-        // TODO We know which slot on the board is moving, and we can determine which slot on the board is empty.
-        //  Put together a vector for the move
-        //  Figure out a constant number of updates over which to perform the move
-        //  Divide the move vector by that number of updates...
-    }
 
+impl SimpleState for ProcessingMove {
     fn handle_event(
         &mut self,
         data: StateData<'_, GameData<'_, '_>>,
@@ -160,15 +183,28 @@ impl SimpleState for ProcessingMove {
         handle_common_events(data.world, &event).unwrap_or(Trans::None)
     }
 
-    fn update(&mut self, _data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
-        // TODO This is where we'd "simulate" the movement of tiles.
-        //  ... and then apply the update step with each update.
-        //  Once we get close enough, decide that we're done and pop back.
-        if true {
+    fn update(&mut self, data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
+        if self.steps_completed >= Move::NUM_STEPS {
             // Tile has arrived, pop back to awaiting input state.
+            data.world.fetch_mut::<Board>().move_tile_at(self.tile_move.from);
+
             Trans::Pop
         } else {
             // Tile hasn't arrived yet, remain in this state.
+            let tiles = data.world.read_component::<Tile>();
+            let mut transforms = data.world.write_component::<Transform>();
+
+            for tt in (&tiles, &mut transforms).join() {
+                let (tile, transform): (&Tile, &mut Transform) = tt;
+
+                if tile.index == self.tile_move.tile {
+                    transform.append_translation(self.tile_move.move_step.clone());
+                    self.steps_completed += 1;
+
+                    break;
+                }
+            }
+
             Trans::None
         }
     }
